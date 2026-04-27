@@ -509,7 +509,7 @@ function toggleRandomOrder() {
 }
 function startSection(i) { sectionIdx = i; mode = 'section'; quizQuestions = DATA()[i].questions.map(q => ({ ...q, secIdx: i })); if (randomOrder) quizQuestions = shuffle(quizQuestions); startQuiz(); }
 function startAllRandom() { sectionIdx = -1; mode = 'all_random'; const all = []; DATA().forEach((sec, i) => sec.questions.forEach(q => all.push({ ...q, secIdx: i }))); quizQuestions = shuffle(all); startQuiz(); }
-function startAll() { sectionIdx = -1; mode = 'all'; quizQuestions = []; DATA().forEach((sec, i) => sec.questions.forEach(q => quizQuestions.push({ ...q, secIdx: i }))); if (randomOrder) quizQuestions = shuffle(quizQuestions); startQuiz(); }
+function startAll() { sectionIdx = -1; mode = 'all'; quizQuestions = []; DATA().forEach((sec, i) => sec.questions.forEach(q => quizQuestions.push({ ...q, secIdx: i }))); startQuiz(); }
 function startRandom() { sectionIdx = -1; mode = 'random'; const all = []; DATA().forEach((sec, i) => sec.questions.forEach(q => all.push({ ...q, secIdx: i }))); quizQuestions = shuffle(all).slice(0, 30); startQuiz(); }
 function startExam() { sectionIdx = -1; mode = 'exam'; const all = []; DATA().forEach((sec, i) => sec.questions.forEach(q => all.push({ ...q, secIdx: i }))); quizQuestions = shuffle(all).slice(0, 50); timerSeconds = 50 * 60; startQuiz(); timerInterval = setInterval(tickTimer, 1000); }
 

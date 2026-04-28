@@ -229,7 +229,10 @@ body {
 .btn-primary { background: var(--white); color: #1a1a1a; }
 .btn-primary:hover { background: var(--accent); }
 
-#timer-bar{text-align:right;color:var(--yellow);font-weight:600;margin-bottom:24px;font-size:1rem;letter-spacing:1px}
+#timer-bar{display:flex;align-items:center;gap:12px;margin-bottom:24px;font-size:0.9rem;font-weight:600;letter-spacing:1px}
+#timer-bar .timer-text{white-space:nowrap}
+.timer-progress{flex:1;height:6px;background:rgba(255,255,255,0.1);border-radius:3px;overflow:hidden}
+.timer-progress span{display:block;height:100%;border-radius:3px;transition:width 1s linear,background 2s ease}
 
 /* ---- RESULTS ---- */
 .results-card{text-align: center; animation: fadeUp 0.5s ease;}
@@ -363,8 +366,11 @@ body {
         <button class="back" onclick="goHome()">&larr; Назад</button>
         <span class="counter" id="q-counter"></span>
       </div>
+      <div id="timer-bar" class="hidden">
+        <div class="timer-progress"><span id="timer-progress-bar"></span></div>
+        <span class="timer-text" id="timer-text"></span>
+      </div>
       <div class="progress-top"><span id="q-progress"></span></div>
-      <div id="timer-bar" class="hidden"></div>
       <div class="q-card" id="q-card">
         <h2 id="q-text"></h2>
         <div class="options" id="q-options"></div>
@@ -415,6 +421,7 @@ let answers = {};
 let mode = '';
 let timerInterval = null;
 let timerSeconds = 0;
+let timerTotal = 0;
 let sectionIdx = -1;
 let randomOrder = false;
 
@@ -509,9 +516,9 @@ function toggleRandomOrder() {
 }
 function startSection(i) { sectionIdx = i; mode = 'section'; quizQuestions = DATA()[i].questions.map(q => ({ ...q, secIdx: i })); if (randomOrder) quizQuestions = shuffle(quizQuestions); startQuiz(); }
 function startAllRandom() { sectionIdx = -1; mode = 'all_random'; const all = []; DATA().forEach((sec, i) => sec.questions.forEach(q => all.push({ ...q, secIdx: i }))); quizQuestions = shuffle(all); startQuiz(); }
-function startAll() { sectionIdx = -1; mode = 'all'; quizQuestions = []; DATA().forEach((sec, i) => sec.questions.forEach(q => quizQuestions.push({ ...q, secIdx: i }))); startQuiz(); }
+function startAll() { sectionIdx = -1; mode = 'all'; const all = []; DATA().forEach((sec, i) => sec.questions.forEach(q => all.push({ ...q, secIdx: i }))); quizQuestions = shuffle(all).slice(0, 60); timerSeconds = 90 * 60; timerTotal = 90 * 60; startQuiz(); timerInterval = setInterval(tickTimer, 1000); }
 function startRandom() { sectionIdx = -1; mode = 'random'; const all = []; DATA().forEach((sec, i) => sec.questions.forEach(q => all.push({ ...q, secIdx: i }))); quizQuestions = shuffle(all).slice(0, 30); startQuiz(); }
-function startExam() { sectionIdx = -1; mode = 'exam'; const all = []; DATA().forEach((sec, i) => sec.questions.forEach(q => all.push({ ...q, secIdx: i }))); quizQuestions = shuffle(all).slice(0, 50); timerSeconds = 50 * 60; startQuiz(); timerInterval = setInterval(tickTimer, 1000); }
+function startExam() { sectionIdx = -1; mode = 'exam'; const all = []; DATA().forEach((sec, i) => sec.questions.forEach(q => all.push({ ...q, secIdx: i }))); quizQuestions = shuffle(all).slice(0, 50); timerSeconds = 50 * 60; timerTotal = 50 * 60; startQuiz(); timerInterval = setInterval(tickTimer, 1000); }
 
 function shuffle(arr) { const a = [...arr]; for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; }
 
@@ -524,11 +531,21 @@ function startQuiz() {
   renderQuestion();
 }
 
+function getTimerColor(sec) {
+  if (sec > 60 * 60) return 'var(--green)';
+  if (sec > 30 * 60) return 'var(--yellow)';
+  return 'var(--red)';
+}
 function tickTimer() {
   timerSeconds--;
   const m = Math.floor(timerSeconds / 60);
   const s = timerSeconds % 60;
-  document.getElementById('timer-bar').textContent = `${m}:${s.toString().padStart(2, '0')}`;
+  const color = getTimerColor(timerSeconds);
+  const pct = Math.max(0, timerSeconds / timerTotal * 100);
+  const bar = document.getElementById('timer-progress-bar');
+  const txt = document.getElementById('timer-text');
+  if (bar) { bar.style.width = pct + '%'; bar.style.background = color; }
+  if (txt) { txt.style.color = color; txt.textContent = `${m}:${s.toString().padStart(2, '0')}`; }
   if (timerSeconds <= 0) { clearInterval(timerInterval); timerInterval = null; showResults(); }
 }
 
@@ -538,7 +555,18 @@ function renderQuestion() {
 
   document.getElementById('q-counter').textContent = `${String(currentIdx + 1).padStart(2,'0')} / ${String(total).padStart(2,'0')}`;
   document.getElementById('q-progress').style.width = ((currentIdx + 1) / total * 100) + '%';
-  document.getElementById('timer-bar').classList.toggle('hidden', mode !== 'exam');
+  const timerVisible = mode === 'exam' || mode === 'all';
+  document.getElementById('timer-bar').classList.toggle('hidden', !timerVisible);
+  if (timerVisible && timerSeconds > 0) {
+    const color = getTimerColor(timerSeconds);
+    const pct = Math.max(0, timerSeconds / timerTotal * 100);
+    const bar = document.getElementById('timer-progress-bar');
+    const txt = document.getElementById('timer-text');
+    if (bar) { bar.style.width = pct + '%'; bar.style.background = color; }
+    const m = Math.floor(timerSeconds / 60);
+    const s = timerSeconds % 60;
+    if (txt) { txt.style.color = color; txt.textContent = `${m}:${s.toString().padStart(2, '0')}`; }
+  }
 
   const letters = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
   document.getElementById('q-text').innerHTML = `<span class="q-num">${q.id}.</span> ${escHtml(q.question)}`;

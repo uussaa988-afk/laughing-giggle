@@ -67,6 +67,8 @@ body {
 }
 .menu-icon { font-size: 1.5rem; color: var(--white); cursor: pointer; }
 .header-title { font-size: 0.85rem; font-weight: 500; letter-spacing: 2px; text-transform: uppercase; color: var(--gray); }
+.report-bug{margin-left:auto;padding:6px 16px;border-radius:100px;font-size:0.75rem;font-weight:500;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.2);color:var(--gray);cursor:pointer;transition:all 0.3s;text-decoration:none;white-space:nowrap;font-family:inherit;display:inline-flex;align-items:center;gap:6px}
+.report-bug:hover{background:rgba(255,255,255,0.15);color:var(--white);border-color:rgba(255,255,255,0.4)}
 
 /* ---- HOME LAYOUT ---- */
 .home-layout {
@@ -300,16 +302,25 @@ body {
 
 .hidden{display:none!important}
 
+@media(max-width:1100px){
+  body { padding: 20px; }
+  .glass-panel { max-width: 100%; }
+  .home-right h1 { font-size: 3.5rem; }
+}
 @media(max-width:900px){
   .home-layout { flex-direction: column; gap: 16px; }
   .home-left { display: none; } 
   .home-right h1 { font-size: 3rem; }
   .home-right .description { margin-bottom: 16px; }
   .glass-header { padding: 20px 32px; }
+  .report-bug { padding: 6px 12px; font-size: 0.7rem; }
+  .report-bug .bug-label { display: none; }
 }
 @media(max-width:600px){
   body { padding: 8px; overflow-x: hidden; }
   .glass-panel { border-radius: 16px; min-height: auto; max-width: 100%; }
+  .report-bug { padding: 5px 10px; font-size: 0.65rem; }
+  .report-bug .bug-label { display: none; }
   .glass-header { padding: 12px 16px; }
   .home-layout, .content-wrapper { padding: 0 16px 16px; }
   .home-right h1 { font-size: 2rem; margin-bottom: 8px; }
@@ -342,6 +353,7 @@ body {
     <div class="glass-header">
       <span class="menu-icon">☰</span>
       <span class="header-title">Medical Tests Hub</span>
+      <a class="report-bug" href="https://wa.me/qr/UHGAV676BJR6A" target="_blank" rel="noopener noreferrer">❓ <span class="bug-label">Нашли ошибку?</span></a>
     </div>
 
     <!-- HOME SCREEN -->

@@ -1,5 +1,6 @@
 from fastapi import FastAPI, Header, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from datetime import datetime
 import json
@@ -74,7 +75,9 @@ async def issue_ticket(ticket_req: TicketRequest, request: Request):
 def _check_auth(authorization: str | None) -> bool:
     if not authorization:
         return False
-    expected = os.environ.get("ADMIN_PASSWORD", "admin2024")
+    expected = os.environ.get("ADMIN_PASSWORD")
+    if not expected:
+        return False
     if authorization.startswith("Bearer "):
         return authorization[7:] == expected
     return authorization == expected
@@ -83,15 +86,18 @@ def _check_auth(authorization: str | None) -> bool:
 @app.get("/api/tickets")
 async def get_tickets(authorization: str | None = Header(default=None)):
     if not _check_auth(authorization):
-        return {"error": "unauthorized"}
-    return {"tickets": load_tickets()}
+        return JSONResponse(status_code=401, content={"error": "unauthorized"})
+    with _file_lock:
+        tickets = load_tickets()
+    return {"tickets": tickets}
 
 
 @app.get("/api/stats")
 async def get_stats(authorization: str | None = Header(default=None)):
     if not _check_auth(authorization):
-        return {"error": "unauthorized"}
-    tickets = load_tickets()
+        return JSONResponse(status_code=401, content={"error": "unauthorized"})
+    with _file_lock:
+        tickets = load_tickets()
     unique_ips = set(t["ip"] for t in tickets)
     unique_devices = set(t["fingerprint"] for t in tickets)
     return {

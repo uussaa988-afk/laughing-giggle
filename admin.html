@@ -203,11 +203,11 @@ async function loadData() {
     const resp = await fetch(`${API}/api/tickets`, {
       headers: { 'Authorization': `Bearer ${adminPassword}` }
     });
-    const data = await resp.json();
-    if (data.error) {
+    if (!resp.ok) {
       document.getElementById('login-error').textContent = 'Неверный пароль';
       return;
     }
+    const data = await resp.json();
     document.getElementById('login-view').style.display = 'none';
     document.getElementById('admin-view').style.display = 'block';
     renderData(data.tickets);

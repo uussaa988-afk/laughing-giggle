@@ -168,6 +168,7 @@ tr:hover td{background:rgba(255,255,255,0.02)}
         <thead>
           <tr>
             <th>ID билета</th>
+            <th>Ник</th>
             <th>Предмет</th>
             <th>Блок</th>
             <th>Результат</th>
@@ -190,7 +191,7 @@ let adminPassword = '';
 function escHtml(str) {
   const d = document.createElement('div');
   d.textContent = str;
-  return d.innerHTML;
+  return d.innerHTML.replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
 
 function doLogin() {
@@ -239,6 +240,7 @@ function renderData(tickets) {
     const tr = document.createElement('tr');
     tr.innerHTML = `
       <td><strong>${escHtml(t.id)}</strong></td>
+      <td><strong>${escHtml(t.nickname || '-')}</strong></td>
       <td><span class="badge ${badgeClass}">${subjectName}</span></td>
       <td>Блок ${parseInt(t.block_number)}</td>
       <td>${parseInt(t.score)}/${parseInt(t.total)} (${parseFloat(t.percentage)}%)</td>

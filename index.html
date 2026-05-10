@@ -315,7 +315,8 @@ body {
   background: linear-gradient(135deg, #d4a940 0%, #e8c84a 100%);
   border: 1px solid rgba(212, 169, 64, 0.6);
   color: #1a1a1a;
-  margin-top: 16px;
+  margin-top: 8px;
+  margin-bottom: 16px;
   text-decoration: none;
   box-shadow: 0 4px 16px rgba(212, 169, 64, 0.3);
 }
@@ -407,6 +408,32 @@ body {
 .my-ticket-item .t-info .t-date { font-size: 0.7rem; color: var(--dim); margin-top: 2px; }
 .my-ticket-item .t-id { font-size: 0.75rem; color: var(--yellow); font-weight: 600; letter-spacing: 1px; }
 
+.nickname-form { max-width: 400px; margin: 24px 0; }
+.nick-input {
+  width: 100%;
+  padding: 14px 20px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: rgba(0,0,0,0.3);
+  color: var(--white);
+  font-size: 1rem;
+  font-family: inherit;
+  margin-bottom: 16px;
+  outline: none;
+}
+.nick-input:focus { border-color: var(--yellow); }
+.nick-error { color: var(--red); font-size: 0.85rem; margin-top: 8px; }
+.raffle-nickname-display {
+  font-size: 0.85rem;
+  color: var(--gray);
+  margin-bottom: 20px;
+  padding: 10px 16px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  display: inline-block;
+  background: rgba(255,255,255,0.02);
+}
+
 .hidden{display:none!important}
 
 @media(max-width:1100px){
@@ -476,11 +503,10 @@ body {
       <div class="home-right">
         <h1>Проверь свои<br>знания</h1>
         <div class="subtitle">Твой путь к высокому баллу</div>
-        <p class="description">Сложные термины и бесконечные циклы реакций запоминаются проще, когда тренируешься на реальных тестах. Я структурировал материалы по биохимии, микробиологии и другим предметам, чтобы сделать вашу подготовку максимально продуктивной. Никакой лишней воды — только то, что действительно встретится в вариантах.</p>
-        
         <button class="raffle-btn" onclick="openRaffle()">
           <span class="raffle-icon">🎟️</span> Розыгрыш
         </button>
+        <p class="description">Сложные термины и бесконечные циклы реакций запоминаются проще, когда тренируешься на реальных тестах. Я структурировал материалы по биохимии, микробиологии и другим предметам, чтобы сделать вашу подготовку максимально продуктивной. Никакой лишней воды — только то, что действительно встретится в вариантах.</p>
 
         <div class="subject-label">Выберите предмет:</div>
         <div class="subject-tabs" id="subject-tabs"></div>
@@ -850,12 +876,19 @@ const RAFFLE_SUBJECTS = {
   physiology: { name: 'Нормальная физиология', key: 'physiology' }
 };
 
-let raffleState = 'subjects'; // subjects | blocks | quiz | ticket
+let raffleState = 'nickname'; // nickname | subjects | blocks | quiz | ticket | noticket
 let raffleSubject = null;
 let raffleBlock = -1;
 let raffleQuestions = [];
 let raffleIdx = 0;
 let raffleAnswers = {};
+
+function getRaffleNickname() {
+  return localStorage.getItem('raffleNickname') || '';
+}
+function setRaffleNickname(nick) {
+  localStorage.setItem('raffleNickname', nick);
+}
 
 function getRaffleBlocks(subjectKey) {
   const allQuestions = [];
@@ -921,20 +954,37 @@ function hideAllScreens() {
 function openRaffle() {
   hideAllScreens();
   document.getElementById('raffle-screen').style.display = 'block';
-  raffleState = 'subjects';
+  raffleState = getRaffleNickname() ? 'subjects' : 'nickname';
   renderRaffle();
 }
 
 function raffleGoBack() {
+  if (raffleState === 'nickname') { goHome(); return; }
   if (raffleState === 'subjects') { goHome(); return; }
   if (raffleState === 'blocks') { raffleState = 'subjects'; renderRaffle(); return; }
   if (raffleState === 'quiz') { raffleState = 'blocks'; renderRaffle(); return; }
   if (raffleState === 'ticket') { raffleState = 'blocks'; renderRaffle(); return; }
+  if (raffleState === 'noticket') { raffleState = 'blocks'; renderRaffle(); return; }
 }
 
 function renderRaffle() {
   const content = document.getElementById('raffle-content');
   const title = document.getElementById('raffle-title');
+
+  if (raffleState === 'nickname') {
+    title.textContent = 'Розыгрыш';
+    content.innerHTML = `
+      <div class="raffle-info">
+        <strong>Введите ваш ник:</strong> Ник нужен для участия в розыгрыше. Его можно ввести только один раз.
+      </div>
+      <div class="nickname-form">
+        <input type="text" id="raffle-nickname-input" placeholder="Ваш ник" maxlength="30" class="nick-input">
+        <button class="btn btn-primary" onclick="submitRaffleNickname()">Продолжить</button>
+        <div class="nick-error" id="nick-error"></div>
+      </div>
+    `;
+    return;
+  }
 
   if (raffleState === 'subjects') {
     title.textContent = 'Розыгрыш';
@@ -958,8 +1008,9 @@ function renderRaffle() {
 
     content.innerHTML = `
       <div class="raffle-info">
-        <strong>Как это работает:</strong> Выберите предмет, пройдите блок вопросов (~100 шт.) и получите билет для розыгрыша. Каждый пройденный блок = 1 билет.
+        <strong>Как это работает:</strong> Выберите предмет, пройдите блок вопросов (~100 шт.) с результатом <strong>больше 90%</strong> и получите билет для розыгрыша.
       </div>
+      <div class="raffle-nickname-display">👤 Ник: <strong>${escHtml(getRaffleNickname())}</strong></div>
       <div class="raffle-subject-grid">
         <div class="raffle-subject-card" onclick="selectRaffleSubject('biochem')">
           <h3>Биохимия</h3>
@@ -993,6 +1044,18 @@ function renderRaffle() {
   } else if (raffleState === 'ticket') {
     renderRaffleTicket();
   }
+}
+
+function submitRaffleNickname() {
+  const input = document.getElementById('raffle-nickname-input');
+  const nick = (input.value || '').trim();
+  if (!nick || nick.length < 2) {
+    document.getElementById('nick-error').textContent = 'Ник должен быть не менее 2 символов';
+    return;
+  }
+  setRaffleNickname(nick);
+  raffleState = 'subjects';
+  renderRaffle();
 }
 
 function selectRaffleSubject(key) {
@@ -1072,8 +1135,17 @@ async function raffleFinish() {
     if (raffleAnswers[i] === (q._shuffledCorr !== undefined ? q._shuffledCorr : q.correct)) correct++;
   });
 
+  const pct = Math.round(correct / total * 100);
+
+  if (pct < 90) {
+    raffleState = 'noticket';
+    renderRaffleNoTicket(correct, total, pct);
+    return;
+  }
+
   const deviceInfo = getDeviceInfo();
   const fingerprint = getDeviceFingerprint();
+  const nickname = getRaffleNickname();
 
   let ticketId = 'LOCAL-' + Date.now().toString(36).toUpperCase();
 
@@ -1087,7 +1159,8 @@ async function raffleFinish() {
         score: correct,
         total: total,
         device_info: deviceInfo,
-        fingerprint: fingerprint
+        fingerprint: fingerprint,
+        nickname: nickname
       })
     });
     const data = await resp.json();
@@ -1110,6 +1183,31 @@ async function raffleFinish() {
 
   raffleState = 'ticket';
   renderRaffleTicketResult(ticketId, correct, total);
+}
+
+function renderRaffleNoTicket(correct, total, pct) {
+  const content = document.getElementById('raffle-content');
+  const title = document.getElementById('raffle-title');
+  title.textContent = '\u0411\u0438\u043b\u0435\u0442 \u043d\u0435 \u0432\u044b\u0434\u0430\u043d';
+
+  const subName = RAFFLE_SUBJECTS[raffleSubject].name;
+
+  content.innerHTML = `
+    <div class="ticket-card" style="border-color: var(--red); background: linear-gradient(135deg, rgba(232,86,86,0.1) 0%, rgba(255,255,255,0.02) 100%);">
+      <div class="ticket-icon">\u274c</div>
+      <h2>\u041d\u0435\u0434\u043e\u0441\u0442\u0430\u0442\u043e\u0447\u043d\u043e \u043f\u0440\u0430\u0432\u0438\u043b\u044c\u043d\u044b\u0445 \u043e\u0442\u0432\u0435\u0442\u043e\u0432</h2>
+      <div class="ticket-details">
+        <strong>${subName}</strong> \u2014 \u0411\u043b\u043e\u043a ${raffleBlock + 1}<br>
+        \u0420\u0435\u0437\u0443\u043b\u044c\u0442\u0430\u0442: ${correct} \u0438\u0437 ${total} (${pct}%)<br>
+        \u0414\u043b\u044f \u043f\u043e\u043b\u0443\u0447\u0435\u043d\u0438\u044f \u0431\u0438\u043b\u0435\u0442\u0430 \u043d\u0443\u0436\u043d\u043e <strong>\u0431\u043e\u043b\u044c\u0448\u0435 90%</strong> \u043f\u0440\u0430\u0432\u0438\u043b\u044c\u043d\u044b\u0445 \u043e\u0442\u0432\u0435\u0442\u043e\u0432.
+      </div>
+    </div>
+    <div style="text-align:center;margin-top:24px">
+      <button class="btn btn-outline" onclick="startRaffleBlock(${raffleBlock})" style="margin-right:12px">\u041f\u043e\u043f\u0440\u043e\u0431\u043e\u0432\u0430\u0442\u044c \u0441\u043d\u043e\u0432\u0430</button>
+      <button class="btn btn-primary" onclick="raffleState='blocks';renderRaffle();">\u041a \u0431\u043b\u043e\u043a\u0430\u043c</button>
+    </div>
+  `;
+  scrollTop();
 }
 
 function renderRaffleTicketResult(ticketId, correct, total) {

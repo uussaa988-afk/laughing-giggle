@@ -3,8 +3,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from datetime import datetime
+import hashlib
 import json
 import os
+import secrets
 import threading
 
 app = FastAPI()
@@ -41,6 +43,7 @@ class TicketRequest(BaseModel):
     total: int
     device_info: str
     fingerprint: str
+    nickname: str = ""
 
 
 @app.post("/api/tickets")
@@ -51,7 +54,12 @@ async def issue_ticket(ticket_req: TicketRequest, request: Request):
 
     with _file_lock:
         tickets = load_tickets()
-        ticket_id = f"T-{datetime.now().strftime('%Y%m%d%H%M%S')}-{len(tickets) + 1:04d}"
+        seq = len(tickets) + 1
+        rand_part = secrets.token_hex(4).upper()
+        ts = datetime.now().strftime('%Y%m%d%H%M%S')
+        raw = f"{ts}-{seq}-{rand_part}-{ticket_req.fingerprint}"
+        check = hashlib.sha256(raw.encode()).hexdigest()[:6].upper()
+        ticket_id = f"T-{ts}-{seq:04d}-{rand_part}-{check}"
 
         ticket = {
             "id": ticket_id,
@@ -62,6 +70,7 @@ async def issue_ticket(ticket_req: TicketRequest, request: Request):
             "percentage": round(ticket_req.score / ticket_req.total * 100, 1) if ticket_req.total > 0 else 0,
             "device_info": ticket_req.device_info,
             "fingerprint": ticket_req.fingerprint,
+            "nickname": ticket_req.nickname,
             "ip": ip,
             "issued_at": datetime.now().isoformat(),
         }

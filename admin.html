@@ -86,8 +86,9 @@ h1{font-size:2rem;font-weight:700;margin-bottom:8px}
 .table-wrap{
   border:1px solid var(--border);
   border-radius:16px;
-  overflow:hidden;
+  overflow-x:auto;
   margin-bottom:32px;
+  -webkit-overflow-scrolling:touch;
 }
 table{width:100%;border-collapse:collapse}
 th{
@@ -105,11 +106,17 @@ td{
   border-top:1px solid rgba(255,255,255,0.05);
   font-size:0.85rem;
   color:var(--gray);
-  max-width:200px;
-  overflow:hidden;
-  text-overflow:ellipsis;
   white-space:nowrap;
 }
+td.copyable{cursor:pointer;position:relative}
+td.copyable:hover{color:var(--yellow)}
+.copy-toast{
+  position:fixed;top:20px;left:50%;transform:translateX(-50%);
+  background:var(--green);color:#1a1a1a;padding:8px 20px;
+  border-radius:8px;font-size:0.85rem;font-weight:600;
+  z-index:9999;opacity:0;transition:opacity 0.3s;
+}
+.copy-toast.show{opacity:1}
 tr:hover td{background:rgba(255,255,255,0.02)}
 .badge{
   display:inline-block;
@@ -145,6 +152,7 @@ tr:hover td{background:rgba(255,255,255,0.02)}
 </style>
 </head>
 <body>
+<div class="copy-toast" id="copy-toast">Скопировано!</div>
 <div class="container">
   <div id="login-view">
     <div class="login-card">
@@ -239,7 +247,7 @@ function renderData(tickets) {
     const badgeClass = t.subject === 'biochem' ? 'badge-bio' : 'badge-phys';
     const tr = document.createElement('tr');
     tr.innerHTML = `
-      <td><strong>${escHtml(t.id)}</strong></td>
+      <td class="copyable" onclick="copyTicket('${escHtml(t.id)}')"><strong>${escHtml(t.id)}</strong></td>
       <td><strong>${escHtml(t.nickname || '-')}</strong></td>
       <td><span class="badge ${badgeClass}">${subjectName}</span></td>
       <td>Блок ${parseInt(t.block_number)}</td>
@@ -250,6 +258,14 @@ function renderData(tickets) {
       <td>${escHtml(date)}</td>
     `;
     tbody.appendChild(tr);
+  });
+}
+
+function copyTicket(id) {
+  navigator.clipboard.writeText(id).then(() => {
+    const toast = document.getElementById('copy-toast');
+    toast.classList.add('show');
+    setTimeout(() => toast.classList.remove('show'), 1500);
   });
 }
 </script>

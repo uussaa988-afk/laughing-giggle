@@ -55,11 +55,10 @@ async def issue_ticket(ticket_req: TicketRequest, request: Request):
     with _file_lock:
         tickets = load_tickets()
         seq = len(tickets) + 1
-        rand_part = secrets.token_hex(4).upper()
-        ts = datetime.now().strftime('%Y%m%d%H%M%S')
-        raw = f"{ts}-{seq}-{rand_part}-{ticket_req.fingerprint}"
-        check = hashlib.sha256(raw.encode()).hexdigest()[:6].upper()
-        ticket_id = f"T-{ts}-{seq:04d}-{rand_part}-{check}"
+        rand_part = secrets.token_hex(5).upper()
+        raw = f"{seq}-{rand_part}-{ticket_req.fingerprint}-{datetime.now().isoformat()}"
+        check = hashlib.sha256(raw.encode()).hexdigest()[:8].upper()
+        ticket_id = f"T-{rand_part}-{check}"
 
         ticket = {
             "id": ticket_id,

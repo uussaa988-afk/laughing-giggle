@@ -1,9 +1,10 @@
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Header, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from datetime import datetime
 import json
 import os
+import threading
 
 app = FastAPI()
 
@@ -16,6 +17,7 @@ app.add_middleware(
 )
 
 DATA_FILE = "/data/tickets.json"
+_file_lock = threading.Lock()
 
 
 def load_tickets():
@@ -46,38 +48,48 @@ async def issue_ticket(ticket_req: TicketRequest, request: Request):
     if "," in ip:
         ip = ip.split(",")[0].strip()
 
-    ticket_id = f"T-{datetime.now().strftime('%Y%m%d%H%M%S')}-{len(load_tickets()) + 1:04d}"
+    with _file_lock:
+        tickets = load_tickets()
+        ticket_id = f"T-{datetime.now().strftime('%Y%m%d%H%M%S')}-{len(tickets) + 1:04d}"
 
-    ticket = {
-        "id": ticket_id,
-        "subject": ticket_req.subject,
-        "block_number": ticket_req.block_number,
-        "score": ticket_req.score,
-        "total": ticket_req.total,
-        "percentage": round(ticket_req.score / ticket_req.total * 100, 1) if ticket_req.total > 0 else 0,
-        "device_info": ticket_req.device_info,
-        "fingerprint": ticket_req.fingerprint,
-        "ip": ip,
-        "issued_at": datetime.now().isoformat(),
-    }
+        ticket = {
+            "id": ticket_id,
+            "subject": ticket_req.subject,
+            "block_number": ticket_req.block_number,
+            "score": ticket_req.score,
+            "total": ticket_req.total,
+            "percentage": round(ticket_req.score / ticket_req.total * 100, 1) if ticket_req.total > 0 else 0,
+            "device_info": ticket_req.device_info,
+            "fingerprint": ticket_req.fingerprint,
+            "ip": ip,
+            "issued_at": datetime.now().isoformat(),
+        }
 
-    tickets = load_tickets()
-    tickets.append(ticket)
-    save_tickets(tickets)
+        tickets.append(ticket)
+        save_tickets(tickets)
 
     return {"status": "ok", "ticket": ticket}
 
 
+def _check_auth(authorization: str | None) -> bool:
+    if not authorization:
+        return False
+    expected = os.environ.get("ADMIN_PASSWORD", "admin2024")
+    if authorization.startswith("Bearer "):
+        return authorization[7:] == expected
+    return authorization == expected
+
+
 @app.get("/api/tickets")
-async def get_tickets(password: str = ""):
-    if password != os.environ.get("ADMIN_PASSWORD", "admin2024"):
+async def get_tickets(authorization: str | None = Header(default=None)):
+    if not _check_auth(authorization):
         return {"error": "unauthorized"}
     return {"tickets": load_tickets()}
 
 
 @app.get("/api/stats")
-async def get_stats(password: str = ""):
-    if password != os.environ.get("ADMIN_PASSWORD", "admin2024"):
+async def get_stats(authorization: str | None = Header(default=None)):
+    if not _check_auth(authorization):
         return {"error": "unauthorized"}
     tickets = load_tickets()
     unique_ips = set(t["ip"] for t in tickets)

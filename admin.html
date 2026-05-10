@@ -187,6 +187,12 @@ tr:hover td{background:rgba(255,255,255,0.02)}
 const API = 'https://raffle-tickets-backen-fljlueih.fly.dev';
 let adminPassword = '';
 
+function escHtml(str) {
+  const d = document.createElement('div');
+  d.textContent = str;
+  return d.innerHTML;
+}
+
 function doLogin() {
   adminPassword = document.getElementById('password-input').value;
   loadData();
@@ -194,7 +200,9 @@ function doLogin() {
 
 async function loadData() {
   try {
-    const resp = await fetch(`${API}/api/tickets?password=${encodeURIComponent(adminPassword)}`);
+    const resp = await fetch(`${API}/api/tickets`, {
+      headers: { 'Authorization': `Bearer ${adminPassword}` }
+    });
     const data = await resp.json();
     if (data.error) {
       document.getElementById('login-error').textContent = 'Неверный пароль';
@@ -230,14 +238,14 @@ function renderData(tickets) {
     const badgeClass = t.subject === 'biochem' ? 'badge-bio' : 'badge-phys';
     const tr = document.createElement('tr');
     tr.innerHTML = `
-      <td><strong>${t.id}</strong></td>
+      <td><strong>${escHtml(t.id)}</strong></td>
       <td><span class="badge ${badgeClass}">${subjectName}</span></td>
-      <td>Блок ${t.block_number}</td>
-      <td>${t.score}/${t.total} (${t.percentage}%)</td>
-      <td>${t.ip}</td>
-      <td title="${t.device_info}">${t.device_info.substring(0, 30)}...</td>
-      <td>${t.fingerprint}</td>
-      <td>${date}</td>
+      <td>Блок ${parseInt(t.block_number)}</td>
+      <td>${parseInt(t.score)}/${parseInt(t.total)} (${parseFloat(t.percentage)}%)</td>
+      <td>${escHtml(t.ip)}</td>
+      <td title="${escHtml(t.device_info)}">${escHtml((t.device_info || '').substring(0, 30))}...</td>
+      <td>${escHtml(t.fingerprint)}</td>
+      <td>${escHtml(date)}</td>
     `;
     tbody.appendChild(tr);
   });

@@ -70,7 +70,7 @@ h1{font-size:2rem;font-weight:700;margin-bottom:8px}
 
 .stats-grid{
   display:grid;
-  grid-template-columns:repeat(auto-fill,minmax(200px,1fr));
+  grid-template-columns:repeat(auto-fill,minmax(180px,1fr));
   gap:16px;
   margin-bottom:32px;
 }
@@ -142,6 +142,24 @@ tr:hover td{background:rgba(255,255,255,0.02)}
 }
 .refresh-btn:hover{background:rgba(255,255,255,0.05)}
 
+.tab-bar{display:flex;gap:8px;margin-bottom:24px}
+.tab-btn{
+  padding:10px 24px;
+  border-radius:100px;
+  border:1px solid var(--border);
+  background:transparent;
+  color:var(--gray);
+  font-size:0.85rem;
+  font-weight:500;
+  cursor:pointer;
+  font-family:inherit;
+  transition:0.3s;
+}
+.tab-btn:hover{background:rgba(255,255,255,0.05);color:var(--white)}
+.tab-btn.active{background:var(--white);color:#1a1a1a;border-color:var(--white);font-weight:600}
+
+.section-title{font-size:0.8rem;letter-spacing:2px;text-transform:uppercase;color:var(--dim);margin:24px 0 16px;font-weight:600}
+
 @media(max-width:600px){
   body{padding:16px}
   .stats-grid{grid-template-columns:1fr 1fr}
@@ -165,29 +183,55 @@ tr:hover td{background:rgba(255,255,255,0.02)}
 
   <div id="admin-view" style="display:none">
     <h1>Админ-панель розыгрыша</h1>
-    <p class="subtitle">Статистика выданных билетов</p>
+    <p class="subtitle">Управление пользователями и билетами</p>
 
     <button class="refresh-btn" onclick="loadData()">↻ Обновить данные</button>
 
     <div class="stats-grid" id="stats-grid"></div>
 
-    <div class="table-wrap">
-      <table>
-        <thead>
-          <tr>
-            <th>ID билета</th>
-            <th>Ник</th>
-            <th>Предмет</th>
-            <th>Блок</th>
-            <th>Результат</th>
-            <th>IP</th>
-            <th>Устройство</th>
-            <th>Fingerprint</th>
-            <th>Дата</th>
-          </tr>
-        </thead>
-        <tbody id="tickets-body"></tbody>
-      </table>
+    <div class="tab-bar">
+      <button class="tab-btn active" id="tab-tickets" onclick="showTab('tickets')">Билеты</button>
+      <button class="tab-btn" id="tab-users" onclick="showTab('users')">Пользователи</button>
+    </div>
+
+    <div id="tickets-section">
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>ID билета</th>
+              <th>Ник</th>
+              <th>Код доступа</th>
+              <th>Предмет</th>
+              <th>Блок</th>
+              <th>Результат</th>
+              <th>IP</th>
+              <th>Устройство</th>
+              <th>Fingerprint</th>
+              <th>Дата</th>
+            </tr>
+          </thead>
+          <tbody id="tickets-body"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div id="users-section" style="display:none">
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Ник</th>
+              <th>Код доступа</th>
+              <th>Билетов</th>
+              <th>Предметы</th>
+              <th>Дата регистрации</th>
+            </tr>
+          </thead>
+          <tbody id="users-body"></tbody>
+        </table>
+      </div>
     </div>
   </div>
 </div>
@@ -195,6 +239,8 @@ tr:hover td{background:rgba(255,255,255,0.02)}
 <script>
 const API = 'https://raffle-tickets-backen-fljlueih.fly.dev';
 let adminPassword = '';
+let cachedTickets = [];
+let cachedUsers = [];
 
 function escHtml(str) {
   const d = document.createElement('div');
@@ -207,25 +253,49 @@ function doLogin() {
   loadData();
 }
 
+function showTab(tab) {
+  document.getElementById('tickets-section').style.display = tab === 'tickets' ? 'block' : 'none';
+  document.getElementById('users-section').style.display = tab === 'users' ? 'block' : 'none';
+  document.getElementById('tab-tickets').className = 'tab-btn' + (tab === 'tickets' ? ' active' : '');
+  document.getElementById('tab-users').className = 'tab-btn' + (tab === 'users' ? ' active' : '');
+}
+
 async function loadData() {
   try {
-    const resp = await fetch(`${API}/api/tickets`, {
-      headers: { 'Authorization': `Bearer ${adminPassword}` }
-    });
-    if (!resp.ok) {
+    const headers = { 'Authorization': `Bearer ${adminPassword}` };
+    const [ticketsResp, usersResp] = await Promise.all([
+      fetch(`${API}/api/tickets`, { headers }),
+      fetch(`${API}/api/users`, { headers })
+    ]);
+
+    if (!ticketsResp.ok) {
       document.getElementById('login-error').textContent = 'Неверный пароль';
       return;
     }
-    const data = await resp.json();
+
+    const ticketsData = await ticketsResp.json();
+    cachedTickets = ticketsData.tickets || [];
+
+    let usersData = { users: [] };
+    if (usersResp.ok) {
+      usersData = await usersResp.json();
+    }
+    cachedUsers = usersData.users || [];
+
     document.getElementById('login-view').style.display = 'none';
     document.getElementById('admin-view').style.display = 'block';
-    renderData(data.tickets);
+
+    renderStats();
+    renderTickets();
+    renderUsers();
   } catch (e) {
     document.getElementById('login-error').textContent = 'Ошибка подключения к серверу';
   }
 }
 
-function renderData(tickets) {
+function renderStats() {
+  const tickets = cachedTickets;
+  const users = cachedUsers;
   const uniqueIPs = new Set(tickets.map(t => t.ip));
   const uniqueDevices = new Set(tickets.map(t => t.fingerprint));
   const biochemTickets = tickets.filter(t => t.subject === 'biochem').length;
@@ -233,22 +303,26 @@ function renderData(tickets) {
 
   document.getElementById('stats-grid').innerHTML = `
     <div class="stat-card"><div class="val">${tickets.length}</div><div class="lbl">Всего билетов</div></div>
+    <div class="stat-card"><div class="val">${users.length}</div><div class="lbl">Пользователей</div></div>
     <div class="stat-card"><div class="val">${uniqueIPs.size}</div><div class="lbl">Уникальных IP</div></div>
-    <div class="stat-card"><div class="val">${uniqueDevices.size}</div><div class="lbl">Уникальных устройств</div></div>
+    <div class="stat-card"><div class="val">${uniqueDevices.size}</div><div class="lbl">Устройств</div></div>
     <div class="stat-card"><div class="val" style="color:var(--green)">${biochemTickets}</div><div class="lbl">Биохимия</div></div>
     <div class="stat-card"><div class="val" style="color:var(--yellow)">${physTickets}</div><div class="lbl">Физиология</div></div>
   `;
+}
 
+function renderTickets() {
   const tbody = document.getElementById('tickets-body');
   tbody.innerHTML = '';
-  tickets.slice().reverse().forEach(t => {
+  cachedTickets.slice().reverse().forEach(t => {
     const date = new Date(t.issued_at).toLocaleString('ru');
     const subjectName = t.subject === 'biochem' ? 'Биохимия' : 'Физиология';
     const badgeClass = t.subject === 'biochem' ? 'badge-bio' : 'badge-phys';
     const tr = document.createElement('tr');
     tr.innerHTML = `
-      <td class="copyable" onclick="copyTicket('${escHtml(t.id)}')"><strong>${escHtml(t.id)}</strong></td>
+      <td class="copyable" onclick="copyText('${escHtml(t.id)}')"><strong>${escHtml(t.id)}</strong></td>
       <td><strong>${escHtml(t.nickname || '-')}</strong></td>
+      <td class="copyable" onclick="copyText('${escHtml(t.access_code || '-')}')">${escHtml(t.access_code || '-')}</td>
       <td><span class="badge ${badgeClass}">${subjectName}</span></td>
       <td>Блок ${parseInt(t.block_number)}</td>
       <td>${parseInt(t.score)}/${parseInt(t.total)} (${parseFloat(t.percentage)}%)</td>
@@ -261,8 +335,34 @@ function renderData(tickets) {
   });
 }
 
-function copyTicket(id) {
-  navigator.clipboard.writeText(id).then(() => {
+function renderUsers() {
+  const tbody = document.getElementById('users-body');
+  tbody.innerHTML = '';
+  cachedUsers.forEach(u => {
+    const date = new Date(u.registered_at).toLocaleString('ru');
+    const ticketCount = u.tickets_count || 0;
+    const subjects = new Set((u.tickets || []).map(t => t.subject));
+    const subjectBadges = Array.from(subjects).map(s => {
+      const name = s === 'biochem' ? 'Биохимия' : 'Физиология';
+      const cls = s === 'biochem' ? 'badge-bio' : 'badge-phys';
+      return `<span class="badge ${cls}">${name}</span>`;
+    }).join(' ') || '-';
+
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${escHtml(u.id)}</td>
+      <td><strong>${escHtml(u.nickname)}</strong></td>
+      <td class="copyable" onclick="copyText('${escHtml(u.access_code)}')" style="font-family:monospace;letter-spacing:1px">${escHtml(u.access_code)}</td>
+      <td><strong>${ticketCount}</strong></td>
+      <td>${subjectBadges}</td>
+      <td>${escHtml(date)}</td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+
+function copyText(text) {
+  navigator.clipboard.writeText(text).then(() => {
     const toast = document.getElementById('copy-toast');
     toast.classList.add('show');
     setTimeout(() => toast.classList.remove('show'), 1500);

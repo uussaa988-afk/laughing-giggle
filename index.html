@@ -436,6 +436,43 @@ body {
 
 .hidden{display:none!important}
 
+/* ---- RAFFLE TIMER PER QUESTION ---- */
+.raffle-timer-bar{display:flex;align-items:center;gap:12px;margin-bottom:20px;font-size:0.9rem;font-weight:600;letter-spacing:1px}
+.raffle-timer-bar .timer-progress{flex:1;height:6px;background:rgba(255,255,255,0.1);border-radius:3px;overflow:hidden}
+.raffle-timer-bar .timer-progress span{display:block;height:100%;border-radius:3px;transition:width 1s linear,background 2s ease}
+.raffle-timer-bar .timer-text{white-space:nowrap;min-width:3ch;text-align:right;font-variant-numeric:tabular-nums}
+
+/* ---- NO COPY ---- */
+.no-copy{-webkit-user-select:none;-moz-user-select:none;-ms-user-select:none;user-select:none}
+
+/* ---- RAFFLE WELCOME MENU ---- */
+.raffle-welcome{text-align:center;padding:40px 0}
+.raffle-welcome h2{font-size:1.8rem;font-weight:600;margin-bottom:12px;color:var(--white)}
+.raffle-welcome p{color:var(--gray);font-size:0.95rem;margin-bottom:32px}
+.raffle-welcome-btns{display:flex;flex-direction:column;gap:16px;max-width:360px;margin:0 auto}
+.raffle-welcome-btns .btn{padding:18px 32px;font-size:1rem;border-radius:16px;text-align:center}
+
+/* ---- ACCESS CODE DISPLAY ---- */
+.access-code-card{background:rgba(212,169,64,0.1);border:2px solid rgba(212,169,64,0.5);border-radius:20px;padding:32px;text-align:center;margin:24px 0;animation:fadeUp .5s ease}
+.access-code-card h3{font-size:1.2rem;font-weight:600;margin-bottom:12px;color:var(--white)}
+.access-code-card .code{font-size:1.8rem;font-weight:700;letter-spacing:4px;color:var(--yellow);margin:16px 0;font-family:monospace}
+.access-code-card .hint{font-size:0.85rem;color:var(--gray);line-height:1.6}
+
+/* ---- LEADERBOARD ---- */
+.leaderboard-section{margin-top:32px}
+.leaderboard-section h3{font-size:0.8rem;letter-spacing:2px;text-transform:uppercase;color:var(--dim);margin-bottom:16px}
+.lb-item{display:flex;align-items:center;gap:16px;padding:14px 20px;border:1px solid var(--border);border-radius:12px;margin-bottom:8px;background:rgba(255,255,255,0.02)}
+.lb-item.top-1{border-color:rgba(212,169,64,0.5);background:rgba(212,169,64,0.08)}
+.lb-item.top-2{border-color:rgba(192,192,192,0.4);background:rgba(192,192,192,0.05)}
+.lb-item.top-3{border-color:rgba(205,127,50,0.4);background:rgba(205,127,50,0.05)}
+.lb-rank{font-size:1.3rem;font-weight:700;min-width:36px;text-align:center}
+.lb-info{flex:1}
+.lb-info .lb-name{font-size:0.9rem;font-weight:500;color:var(--white)}
+.lb-info .lb-avg{font-size:0.7rem;color:var(--dim);margin-top:2px}
+.lb-tickets{font-size:0.85rem;font-weight:600;color:var(--yellow);white-space:nowrap}
+
+.raffle-block-card.completed{pointer-events:none;opacity:0.7}
+
 @media(max-width:1100px){
   body { padding: 20px; }
   .glass-panel { max-width: 100%; }
@@ -870,23 +907,30 @@ renderHome();
 /* ===== RAFFLE SYSTEM ===== */
 const RAFFLE_API = 'https://raffle-tickets-backen-fljlueih.fly.dev';
 const RAFFLE_BLOCKS = 12;
+const RAFFLE_QUESTION_TIME = 30;
 const RAFFLE_SUBJECTS = {
   biochem: { name: 'Биохимия', key: 'biochem' },
   physiology: { name: 'Нормальная физиология', key: 'physiology' }
 };
 
-let raffleState = 'nickname'; // nickname | subjects | blocks | quiz | ticket | noticket
+let raffleState = 'welcome';
 let raffleSubject = null;
 let raffleBlock = -1;
 let raffleQuestions = [];
 let raffleIdx = 0;
 let raffleAnswers = {};
+let raffleSubmitting = false;
+let raffleTimerInterval = null;
+let raffleTimerSec = RAFFLE_QUESTION_TIME;
 
-function getRaffleNickname() {
-  return localStorage.getItem('raffleNickname') || '';
+function getRaffleUser() {
+  try { return JSON.parse(localStorage.getItem('raffleUser') || 'null'); } catch { return null; }
 }
-function setRaffleNickname(nick) {
-  localStorage.setItem('raffleNickname', nick);
+function setRaffleUser(user) {
+  localStorage.setItem('raffleUser', JSON.stringify(user));
+}
+function clearRaffleUser() {
+  localStorage.removeItem('raffleUser');
 }
 
 function getRaffleBlocks(subjectKey) {
@@ -950,36 +994,124 @@ function hideAllScreens() {
   document.getElementById('raffle-screen').style.display = 'none';
 }
 
+function stopRaffleTimer() {
+  if (raffleTimerInterval) { clearInterval(raffleTimerInterval); raffleTimerInterval = null; }
+}
+
+function startRaffleTimer() {
+  stopRaffleTimer();
+  raffleTimerSec = RAFFLE_QUESTION_TIME;
+  raffleTimerInterval = setInterval(() => {
+    raffleTimerSec--;
+    const pct = Math.max(0, raffleTimerSec / RAFFLE_QUESTION_TIME * 100);
+    const color = raffleTimerSec > 15 ? 'var(--green)' : raffleTimerSec > 7 ? 'var(--yellow)' : 'var(--red)';
+    const bar = document.getElementById('raffle-timer-bar-fill');
+    const txt = document.getElementById('raffle-timer-text');
+    if (bar) { bar.style.width = pct + '%'; bar.style.background = color; }
+    if (txt) { txt.style.color = color; txt.textContent = raffleTimerSec + 'с'; }
+    if (raffleTimerSec <= 0) {
+      stopRaffleTimer();
+      raffleAutoSkip();
+    }
+  }, 1000);
+}
+
+function raffleAutoSkip() {
+  if (raffleAnswers[raffleIdx] === undefined) {
+    raffleAnswers[raffleIdx] = -1;
+  }
+  if (raffleIdx < raffleQuestions.length - 1) {
+    raffleIdx++;
+    renderRaffleQuiz();
+    scrollTop();
+  } else {
+    renderRaffleQuiz();
+  }
+}
+
 function openRaffle() {
   hideAllScreens();
   document.getElementById('raffle-screen').style.display = 'block';
-  raffleState = getRaffleNickname() ? 'subjects' : 'nickname';
+  const user = getRaffleUser();
+  raffleState = user ? 'subjects' : 'welcome';
   renderRaffle();
 }
 
 function raffleGoBack() {
-  if (raffleState === 'nickname') { goHome(); return; }
+  stopRaffleTimer();
+  if (raffleState === 'welcome' || raffleState === 'register' || raffleState === 'login') { goHome(); return; }
+  if (raffleState === 'code_display') { raffleState = 'subjects'; renderRaffle(); return; }
   if (raffleState === 'subjects') { goHome(); return; }
   if (raffleState === 'blocks') { raffleState = 'subjects'; renderRaffle(); return; }
   if (raffleState === 'quiz') { raffleState = 'blocks'; renderRaffle(); return; }
   if (raffleState === 'ticket') { raffleState = 'blocks'; renderRaffle(); return; }
   if (raffleState === 'noticket') { raffleState = 'blocks'; renderRaffle(); return; }
+  if (raffleState === 'leaderboard') { raffleState = 'subjects'; renderRaffle(); return; }
 }
 
 function renderRaffle() {
   const content = document.getElementById('raffle-content');
   const title = document.getElementById('raffle-title');
 
-  if (raffleState === 'nickname') {
+  if (raffleState === 'welcome') {
     title.textContent = 'Розыгрыш';
     content.innerHTML = `
+      <div class="raffle-welcome">
+        <h2>Розыгрыш билетов</h2>
+        <p>Отвечайте на вопросы, набирайте больше 90% и получайте билеты для розыгрыша!</p>
+        <div class="raffle-welcome-btns">
+          <button class="btn btn-primary" onclick="raffleState='register';renderRaffle()">Впервые</button>
+          <button class="btn btn-outline" onclick="raffleState='login';renderRaffle()">Уже участвую</button>
+        </div>
+      </div>
+    `;
+    return;
+  }
+
+  if (raffleState === 'register') {
+    title.textContent = 'Регистрация';
+    content.innerHTML = `
       <div class="raffle-info">
-        <strong>Введите ваш ник:</strong> Ник нужен для участия в розыгрыше. Его можно ввести только один раз.
+        <strong>Введите ваш ник:</strong> После регистрации вы получите код доступа для входа с любого устройства.
       </div>
       <div class="nickname-form">
         <input type="text" id="raffle-nickname-input" placeholder="Ваш ник" maxlength="30" class="nick-input">
-        <button class="btn btn-primary" onclick="submitRaffleNickname()">Продолжить</button>
+        <button class="btn btn-primary" id="raffle-register-btn" onclick="submitRaffleRegister()">Зарегистрироваться</button>
         <div class="nick-error" id="nick-error"></div>
+      </div>
+    `;
+    return;
+  }
+
+  if (raffleState === 'login') {
+    title.textContent = 'Вход';
+    content.innerHTML = `
+      <div class="raffle-info">
+        <strong>Введите код доступа:</strong> Код, который вы получили при регистрации.
+      </div>
+      <div class="nickname-form">
+        <input type="text" id="raffle-code-input" placeholder="XXXX-XXXX-XXXX" maxlength="14" class="nick-input" style="text-transform:uppercase;letter-spacing:2px;font-family:monospace;text-align:center">
+        <button class="btn btn-primary" id="raffle-login-btn" onclick="submitRaffleLogin()">Войти</button>
+        <div class="nick-error" id="nick-error"></div>
+      </div>
+    `;
+    return;
+  }
+
+  if (raffleState === 'code_display') {
+    title.textContent = 'Ваш код доступа';
+    const user = getRaffleUser();
+    content.innerHTML = `
+      <div class="access-code-card">
+        <h3>Регистрация успешна!</h3>
+        <div class="code">${user.access_code}</div>
+        <div class="hint">
+          Сохраните этот код! Он нужен для входа в ваш аккаунт на других устройствах.<br>
+          Если вы потеряете код, восстановить аккаунт будет невозможно.
+        </div>
+      </div>
+      <div style="text-align:center">
+        <button class="btn btn-primary" onclick="raffleState='subjects';renderRaffle()">Продолжить</button>
       </div>
     `;
     return;
@@ -989,6 +1121,7 @@ function renderRaffle() {
     title.textContent = 'Розыгрыш';
     const progress = getRaffleProgress();
     const myTickets = getMyTickets();
+    const user = getRaffleUser();
 
     let ticketsHtml = '';
     if (myTickets.length > 0) {
@@ -1007,9 +1140,9 @@ function renderRaffle() {
 
     content.innerHTML = `
       <div class="raffle-info">
-        <strong>Как это работает:</strong> Выберите предмет, пройдите блок вопросов (~100 шт.) с результатом <strong>больше 90%</strong> и получите билет для розыгрыша.
+        <strong>Как это работает:</strong> Выберите предмет, пройдите блок вопросов (~100 шт.) с результатом <strong>больше 90%</strong> и получите билет для розыгрыша. На каждый вопрос даётся <strong>30 секунд</strong>.
       </div>
-      <div class="raffle-nickname-display">👤 Ник: <strong>${escHtml(getRaffleNickname())}</strong></div>
+      <div class="raffle-nickname-display">👤 Ник: <strong>${escHtml(user ? user.nickname : '')}</strong></div>
       <div class="raffle-subject-grid">
         <div class="raffle-subject-card" onclick="selectRaffleSubject('biochem')">
           <h3>Биохимия</h3>
@@ -1020,6 +1153,9 @@ function renderRaffle() {
           <div class="meta">${SUBJECTS.physiology.data.reduce((s,sec)=>s+sec.questions.length,0)} вопросов • 12 блоков</div>
         </div>
       </div>
+      <div style="text-align:center;margin-bottom:24px">
+        <button class="btn btn-outline" onclick="showLeaderboard()">Рейтинг участников</button>
+      </div>
       ${ticketsHtml}
     `;
   } else if (raffleState === 'blocks') {
@@ -1029,11 +1165,11 @@ function renderRaffle() {
     const progress = getRaffleProgress();
     const subProgress = progress[raffleSubject] || {};
 
-    let html = `<div class="raffle-info">Выберите блок для прохождения. После ответа на все вопросы блока вы получите билет.</div>`;
+    let html = `<div class="raffle-info">Выберите блок для прохождения. Каждый блок можно пройти только <strong>один раз</strong>. На каждый вопрос — <strong>30 секунд</strong>. Копирование текста отключено.</div>`;
     html += '<div class="raffle-block-grid">';
     blocks.forEach((block, i) => {
       const isCompleted = subProgress[i] !== undefined;
-      html += `<div class="raffle-block-card${isCompleted ? ' completed' : ''}" onclick="startRaffleBlock(${i})">
+      html += `<div class="raffle-block-card${isCompleted ? ' completed' : ''}" ${isCompleted ? '' : `onclick="startRaffleBlock(${i})"`}>
         <h4>Блок ${i + 1}</h4>
         <div class="meta">${block.length} вопросов${isCompleted ? ' • ✓ Пройден' : ''}</div>
       </div>`;
@@ -1042,19 +1178,102 @@ function renderRaffle() {
     content.innerHTML = html;
   } else if (raffleState === 'ticket') {
     renderRaffleTicket();
+  } else if (raffleState === 'leaderboard') {
+    renderLeaderboard();
   }
 }
 
-function submitRaffleNickname() {
+async function submitRaffleRegister() {
   const input = document.getElementById('raffle-nickname-input');
+  const btn = document.getElementById('raffle-register-btn');
   const nick = (input.value || '').trim();
   if (!nick || nick.length < 2) {
     document.getElementById('nick-error').textContent = 'Ник должен быть не менее 2 символов';
     return;
   }
-  setRaffleNickname(nick);
-  raffleState = 'subjects';
-  renderRaffle();
+  btn.disabled = true;
+  btn.textContent = 'Регистрация...';
+  try {
+    const resp = await fetch(RAFFLE_API + '/api/users/register', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ nickname: nick })
+    });
+    const data = await resp.json();
+    if (!resp.ok) {
+      document.getElementById('nick-error').textContent = data.error || 'Ошибка регистрации';
+      btn.disabled = false;
+      btn.textContent = 'Зарегистрироваться';
+      return;
+    }
+    setRaffleUser(data.user);
+    raffleState = 'code_display';
+    renderRaffle();
+  } catch (e) {
+    document.getElementById('nick-error').textContent = 'Ошибка подключения к серверу';
+    btn.disabled = false;
+    btn.textContent = 'Зарегистрироваться';
+  }
+}
+
+async function submitRaffleLogin() {
+  const input = document.getElementById('raffle-code-input');
+  const btn = document.getElementById('raffle-login-btn');
+  const code = (input.value || '').trim();
+  if (!code || code.length < 5) {
+    document.getElementById('nick-error').textContent = 'Введите код доступа';
+    return;
+  }
+  btn.disabled = true;
+  btn.textContent = 'Вход...';
+  try {
+    const resp = await fetch(RAFFLE_API + '/api/users/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ access_code: code })
+    });
+    const data = await resp.json();
+    if (!resp.ok) {
+      document.getElementById('nick-error').textContent = data.error || 'Неверный код';
+      btn.disabled = false;
+      btn.textContent = 'Войти';
+      return;
+    }
+    setRaffleUser(data.user);
+    const progress = getRaffleProgress();
+    if (data.tickets && data.tickets.length > 0) {
+      data.tickets.forEach(t => {
+        const subKey = t.subject;
+        const blockNum = t.block_number - 1;
+        if (!progress[subKey]) progress[subKey] = {};
+        if (!progress[subKey][blockNum]) {
+          progress[subKey][blockNum] = { score: t.score, total: t.total, ticketId: t.id, date: t.issued_at };
+        }
+      });
+      localStorage.setItem('raffleProgress', JSON.stringify(progress));
+      const localTickets = getMyTickets();
+      const localIds = new Set(localTickets.map(t => t.ticketId));
+      data.tickets.forEach(t => {
+        if (!localIds.has(t.id)) {
+          localTickets.push({
+            ticketId: t.id,
+            subject: t.subject,
+            block: t.block_number - 1,
+            score: t.score,
+            total: t.total,
+            date: t.issued_at
+          });
+        }
+      });
+      localStorage.setItem('myRaffleTickets', JSON.stringify(localTickets));
+    }
+    raffleState = 'subjects';
+    renderRaffle();
+  } catch (e) {
+    document.getElementById('nick-error').textContent = 'Ошибка подключения к серверу';
+    btn.disabled = false;
+    btn.textContent = 'Войти';
+  }
 }
 
 function selectRaffleSubject(key) {
@@ -1072,16 +1291,24 @@ function shuffleArray(arr) {
 }
 
 function startRaffleBlock(blockIdx) {
+  const progress = getRaffleProgress();
+  const subProgress = progress[raffleSubject] || {};
+  if (subProgress[blockIdx] !== undefined) {
+    return;
+  }
+
   raffleBlock = blockIdx;
   const blocks = getRaffleBlocks(raffleSubject);
   raffleQuestions = shuffleArray(blocks[blockIdx].map((q, i) => ({ ...q, _idx: i })));
   raffleIdx = 0;
   raffleAnswers = {};
+  raffleSubmitting = false;
   raffleState = 'quiz';
   renderRaffleQuiz();
 }
 
 function renderRaffleQuiz() {
+  stopRaffleTimer();
   const content = document.getElementById('raffle-content');
   const title = document.getElementById('raffle-title');
   const q = raffleQuestions[raffleIdx];
@@ -1113,21 +1340,31 @@ function renderRaffleQuiz() {
   });
 
   const progressPct = ((raffleIdx + 1) / total * 100);
+  const isLastAnswered = answered && raffleIdx === total - 1;
 
   content.innerHTML = `
+    <div class="raffle-timer-bar" id="raffle-timer-container" ${answered ? 'style="display:none"' : ''}>
+      <div class="timer-progress"><span id="raffle-timer-bar-fill" style="width:100%;background:var(--green)"></span></div>
+      <span class="timer-text" id="raffle-timer-text" style="color:var(--green)">${RAFFLE_QUESTION_TIME}с</span>
+    </div>
     <div class="progress-top"><span style="width:${progressPct}%"></span></div>
-    <div class="q-card">
+    <div class="q-card no-copy">
       <h2><span class="q-num">${raffleIdx + 1}.</span> ${escHtml(q.question)}</h2>
       <div class="options">${optionsHtml}</div>
     </div>
     <div class="nav-row">
       <button class="btn btn-outline" ${raffleIdx > 0 ? `onclick="rafflePrevQ()"` : 'style="visibility:hidden"'}>&larr; Назад</button>
-      ${answered && raffleIdx === total - 1 ? `<button class="btn btn-primary" onclick="raffleFinish()">Завершить</button>` : `<button class="btn btn-primary" onclick="raffleNextQ()">Далее &rarr;</button>`}
+      ${isLastAnswered ? `<button class="btn btn-primary" id="raffle-finish-btn" onclick="raffleFinish()">Завершить</button>` : `<button class="btn btn-primary" onclick="raffleNextQ()">Далее &rarr;</button>`}
     </div>
   `;
+
+  if (!answered) {
+    startRaffleTimer();
+  }
 }
 
 function raffleSelectOption(oi) {
+  stopRaffleTimer();
   raffleAnswers[raffleIdx] = oi;
   renderRaffleQuiz();
 }
@@ -1136,10 +1373,18 @@ function raffleNextQ() { if (raffleIdx < raffleQuestions.length - 1) { raffleIdx
 function rafflePrevQ() { if (raffleIdx > 0) { raffleIdx--; renderRaffleQuiz(); scrollTop(); } }
 
 async function raffleFinish() {
+  if (raffleSubmitting) return;
+  raffleSubmitting = true;
+
+  const finishBtn = document.getElementById('raffle-finish-btn');
+  if (finishBtn) { finishBtn.disabled = true; finishBtn.textContent = 'Отправка...'; }
+
+  stopRaffleTimer();
+
   const total = raffleQuestions.length;
   let correct = 0;
   raffleQuestions.forEach((q, i) => {
-    if (raffleAnswers[i] === (q._shuffledCorr !== undefined ? q._shuffledCorr : q.correct)) correct++;
+    if (raffleAnswers[i] !== undefined && raffleAnswers[i] >= 0 && raffleAnswers[i] === (q._shuffledCorr !== undefined ? q._shuffledCorr : q.correct)) correct++;
   });
 
   const pct = Math.round(correct / total * 100);
@@ -1147,12 +1392,15 @@ async function raffleFinish() {
   if (pct < 90) {
     raffleState = 'noticket';
     renderRaffleNoTicket(correct, total, pct);
+    raffleSubmitting = false;
     return;
   }
 
   const deviceInfo = getDeviceInfo();
   const fingerprint = getDeviceFingerprint();
-  const nickname = getRaffleNickname();
+  const user = getRaffleUser();
+  const nickname = user ? user.nickname : '';
+  const accessCode = user ? user.access_code : '';
 
   let ticketId = 'LOCAL-' + Date.now().toString(36).toUpperCase();
 
@@ -1167,11 +1415,14 @@ async function raffleFinish() {
         total: total,
         device_info: deviceInfo,
         fingerprint: fingerprint,
-        nickname: nickname
+        nickname: nickname,
+        access_code: accessCode
       })
     });
     const data = await resp.json();
-    if (data.ticket && data.ticket.id) {
+    if (resp.status === 409 && data.error === 'duplicate') {
+      ticketId = data.ticket.id;
+    } else if (data.ticket && data.ticket.id) {
       ticketId = data.ticket.id;
     }
   } catch (e) {
@@ -1190,28 +1441,28 @@ async function raffleFinish() {
 
   raffleState = 'ticket';
   renderRaffleTicketResult(ticketId, correct, total);
+  raffleSubmitting = false;
 }
 
 function renderRaffleNoTicket(correct, total, pct) {
   const content = document.getElementById('raffle-content');
   const title = document.getElementById('raffle-title');
-  title.textContent = '\u0411\u0438\u043b\u0435\u0442 \u043d\u0435 \u0432\u044b\u0434\u0430\u043d';
+  title.textContent = 'Билет не выдан';
 
   const subName = RAFFLE_SUBJECTS[raffleSubject].name;
 
   content.innerHTML = `
     <div class="ticket-card" style="border-color: var(--red); background: linear-gradient(135deg, rgba(232,86,86,0.1) 0%, rgba(255,255,255,0.02) 100%);">
-      <div class="ticket-icon">\u274c</div>
-      <h2>\u041d\u0435\u0434\u043e\u0441\u0442\u0430\u0442\u043e\u0447\u043d\u043e \u043f\u0440\u0430\u0432\u0438\u043b\u044c\u043d\u044b\u0445 \u043e\u0442\u0432\u0435\u0442\u043e\u0432</h2>
+      <div class="ticket-icon">❌</div>
+      <h2>Недостаточно правильных ответов</h2>
       <div class="ticket-details">
-        <strong>${subName}</strong> \u2014 \u0411\u043b\u043e\u043a ${raffleBlock + 1}<br>
-        \u0420\u0435\u0437\u0443\u043b\u044c\u0442\u0430\u0442: ${correct} \u0438\u0437 ${total} (${pct}%)<br>
-        \u0414\u043b\u044f \u043f\u043e\u043b\u0443\u0447\u0435\u043d\u0438\u044f \u0431\u0438\u043b\u0435\u0442\u0430 \u043d\u0443\u0436\u043d\u043e <strong>\u0431\u043e\u043b\u044c\u0448\u0435 90%</strong> \u043f\u0440\u0430\u0432\u0438\u043b\u044c\u043d\u044b\u0445 \u043e\u0442\u0432\u0435\u0442\u043e\u0432.
+        <strong>${subName}</strong> — Блок ${raffleBlock + 1}<br>
+        Результат: ${correct} из ${total} (${pct}%)<br>
+        Для получения билета нужно <strong>больше 90%</strong> правильных ответов.
       </div>
     </div>
     <div style="text-align:center;margin-top:24px">
-      <button class="btn btn-outline" onclick="startRaffleBlock(${raffleBlock})" style="margin-right:12px">\u041f\u043e\u043f\u0440\u043e\u0431\u043e\u0432\u0430\u0442\u044c \u0441\u043d\u043e\u0432\u0430</button>
-      <button class="btn btn-primary" onclick="raffleState='blocks';renderRaffle();">\u041a \u0431\u043b\u043e\u043a\u0430\u043c</button>
+      <button class="btn btn-primary" onclick="raffleState='blocks';renderRaffle();">К блокам</button>
     </div>
   `;
   scrollTop();
@@ -1243,6 +1494,57 @@ function renderRaffleTicketResult(ticketId, correct, total) {
   `;
   scrollTop();
 }
+
+async function showLeaderboard() {
+  raffleState = 'leaderboard';
+  renderRaffle();
+}
+
+async function renderLeaderboard() {
+  const content = document.getElementById('raffle-content');
+  const title = document.getElementById('raffle-title');
+  title.textContent = 'Рейтинг';
+
+  content.innerHTML = '<div style="text-align:center;padding:40px;color:var(--dim)">Загрузка...</div>';
+
+  try {
+    const resp = await fetch(RAFFLE_API + '/api/leaderboard');
+    const data = await resp.json();
+    const board = data.leaderboard || [];
+
+    if (board.length === 0) {
+      content.innerHTML = '<div style="text-align:center;padding:40px;color:var(--dim)">Пока нет участников</div>';
+      return;
+    }
+
+    const medals = ['🥇', '🥈', '🥉'];
+    let html = '<div class="leaderboard-section"><h3>Рейтинг по билетам</h3>';
+    board.forEach((entry, i) => {
+      const rank = i + 1;
+      const topCls = rank <= 3 ? ` top-${rank}` : '';
+      const medal = medals[i] || `#${rank}`;
+      html += `<div class="lb-item${topCls}">
+        <span class="lb-rank">${medal}</span>
+        <div class="lb-info">
+          <div class="lb-name">${escHtml(entry.nickname)}</div>
+          <div class="lb-avg">Средний балл: ${entry.avg_score}%</div>
+        </div>
+        <span class="lb-tickets">🎫 ${entry.tickets_count}</span>
+      </div>`;
+    });
+    html += '</div>';
+    content.innerHTML = html;
+  } catch (e) {
+    content.innerHTML = '<div style="text-align:center;padding:40px;color:var(--red)">Ошибка загрузки рейтинга</div>';
+  }
+}
+
+document.addEventListener('contextmenu', function(e) {
+  if (e.target.closest('.no-copy')) e.preventDefault();
+});
+document.addEventListener('copy', function(e) {
+  if (e.target.closest('.no-copy')) e.preventDefault();
+});
 </script>
 
 </body>

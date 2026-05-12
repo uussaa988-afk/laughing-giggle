@@ -503,10 +503,11 @@ body {
       <div class="home-right">
         <h1>Проверь свои<br>знания</h1>
         <div class="subtitle">Твой путь к высокому баллу</div>
-        <p class="description">Сложные термины и бесконечные циклы реакций запоминаются проще, когда тренируешься на реальных тестах. Я структурировал материалы по биохимии, микробиологии и другим предметам, чтобы сделать вашу подготовку максимально продуктивной. Никакой лишней воды — только то, что действительно встретится в вариантах.</p>
         <button class="raffle-btn" onclick="openRaffle()">
           <span class="raffle-icon">🎟️</span> Розыгрыш
         </button>
+        <p class="description">Сложные термины и бесконечные циклы реакций запоминаются проще, когда тренируешься на реальных тестах. Я структурировал материалы по биохимии, микробиологии и другим предметам, чтобы сделать вашу подготовку максимально продуктивной. Никакой лишней воды — только то, что действительно встретится в вариантах.</p>
+
         <div class="subject-label">Выберите предмет:</div>
         <div class="subject-tabs" id="subject-tabs"></div>
         <div class="mode-actions" id="mode-selector"></div>
@@ -1063,18 +1064,10 @@ function selectRaffleSubject(key) {
   renderRaffle();
 }
 
-function shuffleArray(arr) {
-  for (let i = arr.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [arr[i], arr[j]] = [arr[j], arr[i]];
-  }
-  return arr;
-}
-
 function startRaffleBlock(blockIdx) {
   raffleBlock = blockIdx;
   const blocks = getRaffleBlocks(raffleSubject);
-  raffleQuestions = shuffleArray(blocks[blockIdx].map((q, i) => ({ ...q, _idx: i })));
+  raffleQuestions = blocks[blockIdx].map((q, i) => ({ ...q, _idx: i }));
   raffleIdx = 0;
   raffleAnswers = {};
   raffleState = 'quiz';

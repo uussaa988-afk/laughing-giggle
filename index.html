@@ -51,7 +51,7 @@ body {
   border: 1px solid rgba(255,255,255,0.08);
   border-radius: 24px;
   box-shadow: 0 30px 60px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.1);
-  overflow: hidden;
+  overflow: visible;
   position: relative;
   min-height: auto;
   display: flex;
@@ -78,17 +78,21 @@ body {
   gap: 48px;
 }
 .home-left {
-  flex: 0 0 35%;
+  flex: 0 0 38%;
   position: relative;
+  margin: -80px 0 -50px -70px;
+  z-index: 2;
 }
 .leaf-cutout {
   width: 100%;
   height: 100%;
-  border-radius: 20px;
+  border-radius: 20px 20px 20px 0;
   background-image: url('bg_hosta.png');
   background-size: cover;
-  background-position: center;
-  box-shadow: inset 0 0 0 1px rgba(255,255,255,0.1);
+  background-position: center left;
+  box-shadow: 8px 0 40px rgba(0,0,0,0.6);
+  mask-image: linear-gradient(to right, black 60%, transparent 100%);
+  -webkit-mask-image: linear-gradient(to right, black 60%, transparent 100%);
 }
 .home-right {
   flex: 1;
